@@ -70,13 +70,33 @@ python -m playwright install chromium
 Smoke tests:
 
 ```bash
-python scripts/process_table_link.py "POST_URL" --no-sheet
+python scripts/process_table_chat_link.py "POST_URL"
 python scripts/risk_review.py --text "test"
 python scripts/table_queue_worker.py --once
 ```
 
-The queue worker requires Google credentials and spreadsheet settings before it
-can run successfully.
+The table chat command requires Google credentials, Drive folder ID, and
+spreadsheet settings before it can run successfully.
+
+## Table Agent Telegram Bot
+
+After `.env` is filled, run a foreground test:
+
+```bash
+cd /home/hermes/hermes-automation
+source .venv/bin/activate
+python scripts/telegram_table_bot.py
+```
+
+Send a post URL to the configured Telegram links chat. The bot should reply and
+append a row with:
+
+- `Ссылка`;
+- `Количество просмотров`;
+- `Скрин поста`.
+
+For continuous operation, use a user service or supervisor after the foreground
+test passes.
 
 Recommended safety:
 

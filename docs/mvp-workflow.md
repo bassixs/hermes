@@ -16,19 +16,23 @@ Expected behavior:
 2. Open the post with browser automation.
 3. Save screenshot under `screenshots/`.
 4. Extract text, views, date, and source.
-5. Append a row to Google Sheets `Results`.
-6. Reply with a short technical summary.
+5. Upload screenshot to Google Drive.
+6. Append a simple row to Google Sheets:
+   - `Ссылка`;
+   - `Количество просмотров`;
+   - `Скрин поста`.
+7. Reply in Telegram with a short technical summary.
 
 Server command:
 
 ```bash
-python scripts/process_table_link.py "https://t.me/readovkanews/108685"
+python scripts/process_table_chat_link.py "https://t.me/readovkanews/108685"
 ```
 
-Queue command:
+Telegram bot command:
 
 ```bash
-python scripts/table_queue_worker.py --once
+python scripts/telegram_table_bot.py
 ```
 
 ## 2. Coordinator Agent
@@ -56,9 +60,12 @@ Expected behavior:
 
 This workflow is not active until the real methodic is provided.
 
-## Queue Sheet
+## Legacy Queue Sheet
 
-For Table Agent, the `Queue` sheet should contain:
+The queue flow is kept as a fallback. The primary Table Agent flow is now
+Telegram chat ingestion.
+
+For legacy queue mode, the `Queue` sheet should contain:
 
 - `id`
 - `status`

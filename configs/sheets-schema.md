@@ -14,7 +14,17 @@ Create two sheets: `Queue` and `Results`.
 | result_row | Result row number or link. |
 | error | Last error, if any. |
 
-## Results
+## Results For Telegram Table Agent
+
+Primary Table Agent output uses a simple operator-facing sheet:
+
+| column | purpose |
+| --- | --- |
+| Ссылка | Original post URL as a clickable hyperlink. |
+| Количество просмотров | Visible post view count. |
+| Скрин поста | Screenshot preview using `IMAGE(...)`. |
+
+## Technical Results
 
 This sheet is primarily for Table Agent. Risk columns may stay empty for this
 agent. If later we want a separate coordinator audit log, create another sheet

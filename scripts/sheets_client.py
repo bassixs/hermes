@@ -41,6 +41,13 @@ QUEUE_HEADERS = [
 ]
 
 
+SIMPLE_RESULT_HEADERS = [
+    "Ссылка",
+    "Количество просмотров",
+    "Скрин поста",
+]
+
+
 def open_spreadsheet():
     settings = get_settings()
     spreadsheet_id = require(settings.spreadsheet_id, "GOOGLE_SPREADSHEET_ID")
@@ -69,6 +76,34 @@ def append_result(record: dict[str, Any]) -> int:
         row.append(value)
     worksheet.append_row(row, value_input_option="USER_ENTERED")
     return len(worksheet.get_all_values())
+
+
+def append_simple_result(post_url: str, views: str, screenshot_url: str) -> int:
+    settings = get_settings()
+    spreadsheet = open_spreadsheet()
+    worksheet = spreadsheet.worksheet(settings.simple_results_sheet)
+    ensure_headers(worksheet, SIMPLE_RESULT_HEADERS)
+
+    link_formula = f'=HYPERLINK("{post_url}"; "{post_url}")'
+    image_formula = f'=IMAGE("{screenshot_url}")' if screenshot_url else ""
+    worksheet.append_row([link_formula, views, image_formula], value_input_option="USER_ENTERED")
+    row_number = len(worksheet.get_all_values())
+
+    try:
+        worksheet.format(f"A{row_number}:C{row_number}", {"verticalAlignment": "MIDDLE", "wrapStrategy": "WRAP"})
+        worksheet.update_dimension_properties(
+            "ROWS",
+            {"pixelSize": 220},
+            start_index=row_number - 1,
+            end_index=row_number,
+        )
+        worksheet.update_dimension_properties("COLUMNS", {"pixelSize": 300}, start_index=0, end_index=1)
+        worksheet.update_dimension_properties("COLUMNS", {"pixelSize": 180}, start_index=1, end_index=2)
+        worksheet.update_dimension_properties("COLUMNS", {"pixelSize": 220}, start_index=2, end_index=3)
+    except Exception:
+        pass
+
+    return row_number
 
 
 def get_queue_records() -> list[dict[str, Any]]:
