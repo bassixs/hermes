@@ -1,6 +1,11 @@
-# Hermes Architect Skill
+# Legacy Hermes Architect Skill
 
-Use this skill when coordinating the post monitoring automation.
+This file is kept for reference. Prefer the separate skills:
+
+- `skills/coordinator-agent.md`
+- `skills/table-agent.md`
+
+Do not mix the two workflows.
 
 ## Rules
 
@@ -19,10 +24,10 @@ When the operator says:
 проверь пост <url>
 ```
 
-Run:
+For Table Agent run:
 
 ```bash
-python scripts/process_post.py "<url>"
+python scripts/process_table_link.py "<url>"
 ```
 
 Then summarize:
@@ -33,11 +38,10 @@ Then summarize:
 - result row;
 - whether manual review is needed.
 
-## Queue Worker
+## Current Table Agent Queue Worker
 
-For scheduled processing run:
+For scheduled table processing run:
 
 ```bash
-python scripts/queue_worker.py --once
+python scripts/table_queue_worker.py --once
 ```
-

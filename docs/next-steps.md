@@ -5,7 +5,10 @@
 1. Google Sheet URL or desired table layout confirmation.
 2. Google service account JSON, placed on the server only, not committed here.
 3. Three to five VK/Telegram test post links.
-4. The real duty-officer methodic text for `methodics/risk_review.md`.
+4. Chat IDs/names for the two agents:
+   - links/table chat;
+   - coordinator chat;
+   - observers chat.
 5. Preferred Telegram operator chat/user ID.
 
 ## First Implementation Milestone
@@ -16,7 +19,7 @@
 4. Run one capture without Sheets:
 
 ```bash
-python scripts/process_post.py "POST_URL" --no-sheet
+python scripts/process_table_link.py "POST_URL" --no-sheet
 ```
 
 5. Fix source-specific extraction selectors for VK and Telegram based on real
@@ -24,14 +27,21 @@ python scripts/process_post.py "POST_URL" --no-sheet
 6. Connect Google Sheets and run:
 
 ```bash
-python scripts/process_post.py "POST_URL"
+python scripts/process_table_link.py "POST_URL"
 ```
 
 7. Add a `new` row to the queue and run:
 
 ```bash
-python scripts/queue_worker.py --once
+python scripts/table_queue_worker.py --once
 ```
+
+## Coordinator Milestone
+
+1. Confirm the methodic in `methodics/risk_review.md`.
+2. Define where forwarded coordinator posts arrive.
+3. Define where observer briefs should be sent.
+4. Test 10-20 historical posts and tune thresholds.
 
 ## Open Design Choices
 
@@ -40,4 +50,3 @@ python scripts/queue_worker.py --once
   authenticated browser profiles.
 - Whether the queue is Google Sheets only or also accepts Telegram commands.
 - How strict the manual-review threshold should be.
-

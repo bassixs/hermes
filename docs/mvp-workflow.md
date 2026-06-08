@@ -1,11 +1,13 @@
 # MVP Workflow
 
-## Manual Command
+There are two independent MVP workflows.
 
-Operator command:
+## 1. Table Agent
+
+Input:
 
 ```text
-проверь пост https://...
+<post_url>
 ```
 
 Expected behavior:
@@ -13,23 +15,50 @@ Expected behavior:
 1. Detect platform from URL.
 2. Open the post with browser automation.
 3. Save screenshot under `screenshots/`.
-4. Extract text and views.
-5. Evaluate risk using `methodics/risk_review.md`.
-6. Append a row to Google Sheets.
-7. Reply with a short summary:
+4. Extract text, views, date, and source.
+5. Append a row to Google Sheets `Results`.
+6. Reply with a short technical summary.
 
-```text
-Готово.
-Риск: medium
-Просмотры: 12 431
-Строка: <sheet row/link>
-Скрин: <drive link or local path>
-Нужно решение дежурного: да
+Server command:
+
+```bash
+python scripts/process_table_link.py "https://t.me/readovkanews/108685"
 ```
 
-## Queue Mode
+Queue command:
 
-The queue sheet should contain at least:
+```bash
+python scripts/table_queue_worker.py --once
+```
+
+## 2. Coordinator Agent
+
+Input:
+
+```text
+<post_url forwarded by duty officer>
+```
+
+Expected behavior:
+
+1. Capture the post text and screenshot.
+2. Apply `methodics/risk_review.md`.
+3. Decide one of:
+   - `no_escalation`;
+   - `needs_human_coordinator`;
+   - `send_to_observers`.
+4. If escalation is needed, generate a short observer brief:
+   - what happened;
+   - where it happened;
+   - why it matters according to the methodic;
+   - link and screenshot;
+   - confidence and matched criteria.
+
+This workflow is not active until the real methodic is provided.
+
+## Queue Sheet
+
+For Table Agent, the `Queue` sheet should contain:
 
 - `id`
 - `status`
@@ -44,20 +73,10 @@ Statuses:
 - `new`
 - `processing`
 - `done`
-- `manual_review`
 - `error`
-
-Cron runs every 5-15 minutes:
-
-1. Read the first `new` row.
-2. Lock it by setting `processing`.
-3. Run the manual-command workflow.
-4. Write result fields.
-5. Set final status.
 
 ## Failure Handling
 
-If text or views cannot be extracted, still save the screenshot and write a row
-with warnings. The item should become `manual_review` when the screenshot exists
-but machine-readable data is incomplete.
-
+Table Agent should still write a row when a screenshot exists but text/views are
+incomplete. The row status should be `error` only when the post could not be
+captured or the table could not be updated.

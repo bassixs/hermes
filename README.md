@@ -3,32 +3,35 @@
 This workspace contains the implementation pack for a Hermes Agent based
 automation system.
 
-The target design is a coordinator-led multi-agent workflow:
+The target design has two separate Hermes agents. They can share low-level
+capture scripts, but they must not share decision logic.
 
-- Hermes Architect coordinates work, routes tasks, checks outputs, and asks for
-  human confirmation on sensitive decisions.
-- Source Monitor watches the input queue and sources.
-- Capture Agent opens VK/Telegram posts, extracts visible metrics, and creates
-  screenshots.
-- Sheets Agent writes normalized rows to Google Sheets.
-- Risk Review Agent applies the duty-officer methodic and returns a structured
-  risk triage.
-- Notification Agent sends concise Telegram alerts and status updates.
+- Coordinator Agent reviews posts forwarded by duty officers. It applies the
+  methodic, decides whether the item should go to observers, and prepares a
+  short brief. It does not maintain the public accounting table.
+- Table Agent receives post links from a links chat, captures metadata, and
+  writes rows to Google Sheets. It does not evaluate political/operational risk.
 
 ## MVP
 
-The first useful version is intentionally small:
+The first useful version is split in two:
 
-1. Accept a post URL from Telegram or a queue sheet.
-2. Capture text, views, date, source, and screenshot.
-3. Run risk triage using `methodics/risk_review.md`.
-4. Append one row to Google Sheets.
-5. Notify the operator when risk is not `low` or when data extraction fails.
+1. Table Agent:
+   - accept a post URL from a queue sheet or links chat;
+   - capture text, views, date, source, and screenshot;
+   - append one row to Google Sheets.
+2. Coordinator Agent:
+   - accept a post URL from the duty/coordinator chat;
+   - capture text and screenshot;
+   - apply `methodics/risk_review.md`;
+   - forward a brief only when the methodic says the item matches escalation
+     criteria.
 
 See:
 
 - `docs/architecture.md`
 - `docs/mvp-workflow.md`
+- `docs/coordinator-agent.md`
+- `docs/table-agent.md`
 - `docs/server-runbook.md`
 - `configs/env.example`
-

@@ -1,28 +1,45 @@
 # Architecture
 
-## Roles
+## Two-Agent Boundary
 
-### Hermes Architect
+### Agent 1: Coordinator Agent
 
-Owns the full workflow. It should not do every step directly. It delegates
-specialized work, validates outputs, writes a final event record, and escalates
-uncertain or sensitive cases to a human operator.
+Purpose: replace the manual coordinator check for posts forwarded by duty
+officers.
 
 Responsibilities:
 
-- accept operator commands;
-- start scheduled queue processing;
-- assign work to specialized agents or scripts;
-- enforce manual review rules;
-- keep the status log coherent;
-- summarize failures in plain language.
+- receives a post link from the duty/coordinator chat;
+- captures the post text, metadata, and screenshot;
+- applies the duty-officer methodic from `methodics/risk_review.md`;
+- decides whether the post should be escalated to observers;
+- prepares a short observer brief when escalation criteria are met;
+- asks for human confirmation when confidence is low or the methodic is unclear;
+- keeps a separate risk-review log.
 
-### Source Monitor Agent
+This agent should not fill the routine accounting table. Its output is a
+coordination decision and, when needed, an observer-facing brief.
 
-Finds new inputs. In MVP it reads rows with status `new` from a Google Sheet.
-Later it can monitor channel lists directly.
+### Agent 2: Table Agent
 
-### Capture Agent
+Purpose: automate the existing link-to-table routine.
+
+Responsibilities:
+
+- receives a post link from a links chat or queue sheet;
+- captures post text, visible views, date, source, and screenshot;
+- writes the record to Google Sheets;
+- updates queue status;
+- reports extraction errors.
+
+This agent should not apply the risk methodic and should not decide whether to
+send anything to observers.
+
+## Shared Helpers
+
+Both agents may use shared deterministic helpers:
+
+### Capture Helper
 
 Receives one post URL and returns normalized capture data:
 
@@ -35,15 +52,15 @@ Receives one post URL and returns normalized capture data:
 - local screenshot path;
 - extraction warnings.
 
-### Sheets Agent
+### Sheets Helper
 
 Writes normalized records to Google Sheets. It should be deterministic and
 script-backed, not a free-form browser workflow.
 
-### Risk Review Agent
+### Risk Review Helper
 
-Applies `methodics/risk_review.md` as a rubric. It returns structured triage,
-not a final political or operational action.
+Used only by Coordinator Agent. Applies `methodics/risk_review.md` as a rubric
+and returns structured triage.
 
 Output fields:
 
@@ -53,24 +70,24 @@ Output fields:
 - `confidence`;
 - `recommended_action`.
 
-### Notification Agent
+## Table Agent Flow
 
-Sends concise operator notifications. It avoids duplicate noise and only alerts
-when configured rules say the operator should see the item.
+1. Human sends a link to the links chat or adds a `new` queue row.
+2. Table Agent creates a job ID.
+3. Capture Helper extracts post data and stores a screenshot.
+4. Sheets Helper appends the result row.
+5. Table Agent marks the queue item `done` or `error`.
 
-## Data Flow
+## Coordinator Agent Flow
 
-1. Operator sends `check post <url>` or cron reads a `new` queue item.
-2. Architect creates a job ID.
-3. Capture Agent extracts data and stores a screenshot.
-4. Risk Review Agent evaluates text and context.
-5. Sheets Agent appends or updates the row.
-6. Notification Agent reports if the item needs attention.
-7. Architect marks the queue item `done`, `error`, or `manual_review`.
+1. Duty officer forwards a questionable/risky post to the coordinator chat.
+2. Coordinator Agent captures the post and reads the methodic.
+3. Coordinator Agent classifies the post against the methodic.
+4. If it does not match escalation criteria, it replies with a short reason.
+5. If it matches, it prepares a brief for observers.
+6. If confidence is low, it asks the human coordinator for confirmation.
 
 ## Manual Review Rule
 
-The system can classify and summarize. For `medium`, `high`, `critical`, or
-low-confidence results, it should notify the operator and wait for confirmation
-before any external escalation or final decision.
-
+Coordinator Agent can classify and summarize. For low-confidence or ambiguous
+items, it should ask a human coordinator before sending an observer brief.

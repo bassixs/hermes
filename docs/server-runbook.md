@@ -70,9 +70,9 @@ python -m playwright install chromium
 Smoke tests:
 
 ```bash
-python scripts/process_post.py "POST_URL" --no-sheet
+python scripts/process_table_link.py "POST_URL" --no-sheet
 python scripts/risk_review.py --text "test"
-python scripts/queue_worker.py --once
+python scripts/table_queue_worker.py --once
 ```
 
 The queue worker requires Google credentials and spreadsheet settings before it
