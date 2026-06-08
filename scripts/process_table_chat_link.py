@@ -11,9 +11,13 @@ from sheets_client import append_simple_result
 
 async def process(url: str, write_sheet: bool = True) -> dict:
     capture_result = await capture(url)
+    warnings = list(capture_result.get("warnings", []))
     screenshot_url = ""
     if capture_result.get("screenshot_path"):
-        screenshot_url = upload_public_image(capture_result["screenshot_path"])
+        try:
+            screenshot_url = upload_public_image(capture_result["screenshot_path"])
+        except Exception as exc:
+            warnings.append(f"drive_upload_failed: {exc}")
 
     row_number = ""
     if write_sheet:
@@ -29,7 +33,7 @@ async def process(url: str, write_sheet: bool = True) -> dict:
         "screenshot_url": screenshot_url,
         "screenshot_path": capture_result.get("screenshot_path", ""),
         "row_number": row_number,
-        "warnings": capture_result.get("warnings", []),
+        "warnings": warnings,
     }
 
 
@@ -45,4 +49,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

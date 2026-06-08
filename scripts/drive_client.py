@@ -29,14 +29,18 @@ def upload_public_image(path: str) -> str:
         "parents": [folder_id],
     }
     media = MediaFileUpload(str(file_path), mimetype="image/png", resumable=False)
-    created = service.files().create(body=metadata, media_body=media, fields="id").execute()
+    created = (
+        service.files()
+        .create(body=metadata, media_body=media, fields="id", supportsAllDrives=True)
+        .execute()
+    )
     file_id = created["id"]
 
     service.permissions().create(
         fileId=file_id,
         body={"type": "anyone", "role": "reader"},
         fields="id",
+        supportsAllDrives=True,
     ).execute()
 
     return f"https://drive.google.com/uc?export=view&id={file_id}"
-
