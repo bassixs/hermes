@@ -6,7 +6,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from playwright.async_api import async_playwright
 
@@ -14,8 +14,11 @@ from common import get_settings
 
 
 VIEW_PATTERNS = [
-    re.compile(r"([\d\s.,]+)\s*(?:views|просмотров|просмотра|просмотр)", re.I),
-    re.compile(r"👁\s*([\d\s.,]+)", re.I),
+    re.compile(
+        r"([\d\s.,]+)\s*(?:views|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u043e\u0432|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u0430|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440)",
+        re.I,
+    ),
+    re.compile(r"\U0001f441\s*([\d\s.,]+)", re.I),
 ]
 
 
@@ -42,6 +45,40 @@ def find_views(text: str) -> str:
     return ""
 
 
+def telegram_public_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    if "t.me" not in host:
+        return None
+
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) < 2 or parts[0] in {"s", "c"}:
+        return None
+
+    channel, post_id = parts[0], parts[1]
+    if not post_id.isdigit():
+        return None
+
+    return urlunparse((parsed.scheme or "https", parsed.netloc, f"/s/{channel}/{post_id}", "", "", ""))
+
+
+def candidate_urls(url: str, source_type: str) -> list[str]:
+    candidates = [url]
+    if source_type == "telegram":
+        public_url = telegram_public_url(url)
+        if public_url:
+            candidates.insert(0, public_url)
+    return candidates
+
+
+def looks_like_telegram_stub(text: str) -> bool:
+    compact = " ".join(text.upper().split())
+    return compact in {
+        "DOWNLOAD CONTEXT EMBED VIEW IN CHANNEL",
+        "VIEW IN TELEGRAM",
+    }
+
+
 async def capture(url: str) -> dict:
     settings = get_settings()
     source_type = detect_source_type(url)
@@ -50,18 +87,30 @@ async def capture(url: str) -> dict:
     screenshot_path = settings.screenshot_dir / f"{source_type}_{safe_stamp}.png"
     warnings: list[str] = []
 
+    title = ""
+    body_text = ""
+    final_url = url
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=settings.capture_headless)
         page = await browser.new_page(viewport={"width": 1440, "height": 1600})
-        try:
-            await page.goto(url, wait_until="networkidle", timeout=settings.capture_timeout_ms)
-        except Exception as exc:
-            warnings.append(f"navigation_warning: {exc}")
-            await page.goto(url, wait_until="domcontentloaded", timeout=settings.capture_timeout_ms)
+        for candidate in candidate_urls(url, source_type):
+            final_url = candidate
+            try:
+                await page.goto(candidate, wait_until="domcontentloaded", timeout=settings.capture_timeout_ms)
+                await page.wait_for_timeout(3000)
+                title = await page.title()
+                body_text = await page.locator("body").inner_text(timeout=10000)
+            except Exception as exc:
+                warnings.append(f"navigation_warning: {candidate}: {exc}")
+                continue
+
+            if source_type == "telegram" and looks_like_telegram_stub(body_text):
+                warnings.append(f"telegram_stub_page: {candidate}")
+                continue
+            break
 
         await page.screenshot(path=str(screenshot_path), full_page=True)
-        title = await page.title()
-        body_text = await page.locator("body").inner_text(timeout=10000)
         await browser.close()
 
     body_text = re.sub(r"\n{3,}", "\n\n", body_text).strip()
@@ -74,6 +123,7 @@ async def capture(url: str) -> dict:
         "source_type": source_type,
         "source_name": title,
         "post_url": url,
+        "capture_url": final_url,
         "post_datetime": "",
         "post_text": body_text[:12000],
         "views": views,
@@ -92,4 +142,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
