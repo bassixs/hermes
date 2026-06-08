@@ -34,7 +34,7 @@ def detect_source_type(url: str) -> str:
 def normalize_views(raw: str | None) -> str:
     if not raw:
         return ""
-    value = raw.replace(" ", "").replace(",", ".").strip().upper()
+    value = re.sub(r"\s+", "", raw).replace(",", ".").strip().upper()
     value = value.replace("\u041a", "K").replace("\u041c", "M").replace("\u0412", "B")
     return value
 
@@ -183,25 +183,13 @@ async def first_existing_locator(page, selectors: list[str]):
 
 async def hover_vk_bottom_date(page, post) -> bool:
     try:
-        point = await post.evaluate(
-            """
-            (element) => {
-              const datePattern = /(\d+\s*(мин|ч|д|дн)|сегодня|вчера|назад)/i;
-              const nodes = Array.from(element.querySelectorAll("a, span, time, div"));
-              const candidates = nodes
-                .filter((node) => datePattern.test((node.innerText || node.textContent || "").trim()))
-                .map((node) => {
-                  const rect = node.getBoundingClientRect();
-                  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, bottom: rect.bottom, right: rect.right };
-                })
-                .filter((rect) => rect.x > 0 && rect.y > 0 && rect.bottom > 0 && rect.right > 0)
-                .sort((a, b) => (b.bottom - a.bottom) || (b.right - a.right));
-              return candidates[0] || null;
-            }
-            """
-        )
-        if not point:
+        bbox = await post.bounding_box()
+        if not bbox:
             return False
+        point = {
+            "x": bbox["x"] + bbox["width"] - 70,
+            "y": bbox["y"] + bbox["height"] - 48,
+        }
         await page.mouse.move(point["x"], point["y"])
         await page.wait_for_timeout(1800)
         return True
@@ -226,18 +214,10 @@ async def extract_vk_views_from_hover(page) -> str:
                     return views
         except Exception:
             continue
-
-    try:
-        body_text = await page.locator("body").inner_text(timeout=5000)
-        view_matches = list(re.finditer(r"([\d\s.,]+[KMBKM\u041a\u041c\u0412]?)\s*(?:views|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u043e\u0432)", body_text, re.I))
-        if view_matches:
-            return normalize_views(view_matches[-1].group(1))
-    except Exception:
-        pass
     return ""
 
 
-async def screenshot_vk_post_card(page, post, screenshot_path: Path, include_hover_popover: bool = False) -> None:
+async def hide_vk_comments(post) -> None:
     try:
         await post.evaluate(
             """
@@ -270,6 +250,10 @@ async def screenshot_vk_post_card(page, post, screenshot_path: Path, include_hov
         )
     except Exception:
         pass
+
+
+async def screenshot_vk_post_card(page, post, screenshot_path: Path, include_hover_popover: bool = False) -> None:
+    await hide_vk_comments(post)
 
     try:
         bbox = await post.bounding_box()
@@ -311,6 +295,7 @@ async def extract_vk_post(page, screenshot_path: Path) -> dict | None:
     await wait_for_visuals(post)
     await page.wait_for_timeout(1500)
 
+    await hide_vk_comments(post)
     hover_ok = await hover_vk_bottom_date(page, post)
     views = await extract_vk_views_from_hover(page) if hover_ok else ""
     post_text = await post.inner_text(timeout=10000)
