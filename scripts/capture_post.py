@@ -183,8 +183,14 @@ async def first_existing_locator(page, selectors: list[str]):
 
 async def extract_vk_views_from_hover(page, post) -> str:
     hover_selectors = [
+        "a:has-text('\u043d\u0430\u0437\u0430\u0434')",
+        "span:has-text('\u043d\u0430\u0437\u0430\u0434')",
+        "a:has-text('\u0447')",
+        "span:has-text('\u0447')",
         "a.PostHeaderSubtitle__link",
         "a.PostHeaderSubtitle__item",
+        ".rel_date",
+        ".post_date a",
         "a[href*='wall']",
         "time",
     ]
@@ -205,7 +211,7 @@ async def extract_vk_views_from_hover(page, post) -> str:
     return ""
 
 
-async def screenshot_vk_post_card(page, post, screenshot_path: Path) -> None:
+async def screenshot_vk_post_card(page, post, screenshot_path: Path, include_hover_popover: bool = False) -> None:
     try:
         await post.evaluate(
             """
@@ -241,14 +247,18 @@ async def screenshot_vk_post_card(page, post, screenshot_path: Path) -> None:
 
     try:
         bbox = await post.bounding_box()
-        if bbox and bbox.get("height", 0) > 1200:
+        if bbox:
+            viewport_width = await page.evaluate("window.innerWidth")
+            extra_width = 320 if include_hover_popover else 0
+            clip_width = min(bbox["width"] + extra_width, viewport_width - bbox["x"])
+            clip_height = min(bbox["height"], 900 if bbox.get("height", 0) > 1200 else bbox["height"])
             await page.screenshot(
                 path=str(screenshot_path),
                 clip={
                     "x": bbox["x"],
                     "y": bbox["y"],
-                    "width": bbox["width"],
-                    "height": min(bbox["height"], 900),
+                    "width": clip_width,
+                    "height": clip_height,
                 },
             )
             return
@@ -277,7 +287,7 @@ async def extract_vk_post(page, screenshot_path: Path) -> dict | None:
 
     views = await extract_vk_views_from_hover(page, post)
     post_text = await post.inner_text(timeout=10000)
-    await screenshot_vk_post_card(page, post, screenshot_path)
+    await screenshot_vk_post_card(page, post, screenshot_path, include_hover_popover=bool(views))
 
     return {
         "source_name": await page.title(),
