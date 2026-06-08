@@ -205,6 +205,59 @@ async def extract_vk_views_from_hover(page, post) -> str:
     return ""
 
 
+async def screenshot_vk_post_card(page, post, screenshot_path: Path) -> None:
+    try:
+        await post.evaluate(
+            """
+            (element) => {
+              const cutoffSelectors = [
+                ".replies",
+                ".reply",
+                ".wall_module",
+                ".wl_replies",
+                "[class*='Reply']",
+                "[class*='Replies']",
+                "[class*='Comment']",
+                "[class*='comments']"
+              ];
+              for (const selector of cutoffSelectors) {
+                for (const node of element.querySelectorAll(selector)) {
+                  const text = (node.innerText || "").toLowerCase();
+                  if (
+                    selector.includes("Comment") ||
+                    selector.includes("comments") ||
+                    text.includes("коммент") ||
+                    text.includes("ответ")
+                  ) {
+                    node.style.display = "none";
+                  }
+                }
+              }
+            }
+            """
+        )
+    except Exception:
+        pass
+
+    try:
+        bbox = await post.bounding_box()
+        if bbox and bbox.get("height", 0) > 1200:
+            await page.screenshot(
+                path=str(screenshot_path),
+                clip={
+                    "x": bbox["x"],
+                    "y": bbox["y"],
+                    "width": bbox["width"],
+                    "height": min(bbox["height"], 900),
+                },
+            )
+            return
+    except Exception:
+        pass
+
+    await post.screenshot(path=str(screenshot_path))
+
+
 async def extract_vk_post(page, screenshot_path: Path) -> dict | None:
     post = await first_existing_locator(
         page,
@@ -224,7 +277,7 @@ async def extract_vk_post(page, screenshot_path: Path) -> dict | None:
 
     views = await extract_vk_views_from_hover(page, post)
     post_text = await post.inner_text(timeout=10000)
-    await post.screenshot(path=str(screenshot_path))
+    await screenshot_vk_post_card(page, post, screenshot_path)
 
     return {
         "source_name": await page.title(),
