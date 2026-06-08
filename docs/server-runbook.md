@@ -75,8 +75,18 @@ python scripts/risk_review.py --text "test"
 python scripts/table_queue_worker.py --once
 ```
 
-The table chat command requires Google credentials, Drive folder ID, and
+The table chat command requires Google credentials, Cloudinary credentials, and
 spreadsheet settings before it can run successfully.
+
+For Cloudinary screenshot previews:
+
+```env
+SCREENSHOT_STORAGE=cloudinary
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+CLOUDINARY_FOLDER=hermes-screenshots
+```
 
 For a personal Google account, prefer public screenshot hosting from the VPS
 instead of Google Drive:

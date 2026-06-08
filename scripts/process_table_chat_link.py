@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 
+from cloudinary_client import upload_image as upload_cloudinary_image
 from capture_post import capture
 from drive_client import upload_public_image
 from sheets_client import append_simple_result
@@ -18,17 +19,42 @@ def public_screenshot_url(path: str) -> str:
     return f"{base_url}/{Path(path).name}"
 
 
+def screenshot_storage() -> str:
+    return os.getenv("SCREENSHOT_STORAGE", "cloudinary").strip().lower()
+
+
+def upload_screenshot(path: str, warnings: list[str]) -> str:
+    storage = screenshot_storage()
+    if storage == "cloudinary":
+        try:
+            return upload_cloudinary_image(path)
+        except Exception as exc:
+            warnings.append(f"cloudinary_upload_failed: {exc}")
+            return ""
+
+    if storage == "server":
+        url = public_screenshot_url(path)
+        if not url:
+            warnings.append("screenshot_public_base_url_missing")
+        return url
+
+    if storage == "drive":
+        try:
+            return upload_public_image(path)
+        except Exception as exc:
+            warnings.append(f"drive_upload_failed: {exc}")
+            return ""
+
+    warnings.append(f"unknown_screenshot_storage: {storage}")
+    return ""
+
+
 async def process(url: str, write_sheet: bool = True) -> dict:
     capture_result = await capture(url)
     warnings = list(capture_result.get("warnings", []))
     screenshot_url = ""
     if capture_result.get("screenshot_path"):
-        screenshot_url = public_screenshot_url(capture_result["screenshot_path"])
-        if not screenshot_url:
-            try:
-                screenshot_url = upload_public_image(capture_result["screenshot_path"])
-            except Exception as exc:
-                warnings.append(f"drive_upload_failed: {exc}")
+        screenshot_url = upload_screenshot(capture_result["screenshot_path"], warnings)
 
     row_number = ""
     if write_sheet:

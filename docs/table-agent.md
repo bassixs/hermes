@@ -38,7 +38,11 @@ the uploaded Google Drive image.
 ```env
 TELEGRAM_TABLE_BOT_TOKEN=123456:...
 TELEGRAM_TABLE_ALLOWED_CHAT_IDS=-1001234567890
-SCREENSHOT_PUBLIC_BASE_URL=http://SERVER_IP/screenshots
+SCREENSHOT_STORAGE=cloudinary
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+CLOUDINARY_FOLDER=hermes-screenshots
 GOOGLE_SIMPLE_RESULTS_SHEET=Results
 ```
 
@@ -54,13 +58,34 @@ Manual test without Telegram:
 python scripts/process_table_chat_link.py "https://t.me/readovkanews/108685"
 ```
 
-## Screenshot Hosting
+## Screenshot Hosting With Cloudinary
 
-Preferred MVP option: serve screenshots from the VPS with `nginx`.
+Preferred MVP option: upload screenshots to Cloudinary.
+
+1. Open Cloudinary dashboard.
+2. Copy:
+   - `Cloud name`;
+   - `API Key`;
+   - `API Secret`.
+3. Put them in `.env`.
+4. Run:
+
+```bash
+python scripts/process_table_chat_link.py "https://t.me/readovkanews/108685"
+```
+
+The sheet cell will contain `IMAGE("https://res.cloudinary.com/...")`, so the
+screenshot appears inside the table.
+
+## Alternative Screenshot Hosting
+
+If Cloudinary is not available, screenshots can be served from the VPS with
+`nginx`.
 
 Set:
 
 ```env
+SCREENSHOT_STORAGE=server
 SCREENSHOT_PUBLIC_BASE_URL=http://SERVER_IP/screenshots
 ```
 
