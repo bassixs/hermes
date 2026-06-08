@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from typing import Any
 
 import gspread
@@ -43,7 +44,8 @@ QUEUE_HEADERS = [
 def open_spreadsheet():
     settings = get_settings()
     spreadsheet_id = require(settings.spreadsheet_id, "GOOGLE_SPREADSHEET_ID")
-    client = gspread.service_account()
+    credentials_path = require(os.getenv("GOOGLE_APPLICATION_CREDENTIALS", ""), "GOOGLE_APPLICATION_CREDENTIALS")
+    client = gspread.service_account(filename=credentials_path)
     return client.open_by_key(spreadsheet_id)
 
 
@@ -112,4 +114,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
