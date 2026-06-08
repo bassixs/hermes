@@ -15,10 +15,10 @@ from common import get_settings
 
 VIEW_PATTERNS = [
     re.compile(
-        r"([\d\s.,]+)\s*(?:views|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u043e\u0432|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u0430|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440)",
+        r"([\d\s.,]+[KMBKM\u041a\u041c\u0412]?)\s*(?:views|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u043e\u0432|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u0430|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440)",
         re.I,
     ),
-    re.compile(r"\U0001f441\s*([\d\s.,]+)", re.I),
+    re.compile(r"\U0001f441\s*([\d\s.,]+[KMBKM\u041a\u041c\u0412]?)", re.I),
 ]
 
 
@@ -34,7 +34,9 @@ def detect_source_type(url: str) -> str:
 def normalize_views(raw: str | None) -> str:
     if not raw:
         return ""
-    return raw.replace(" ", "").replace(",", ".").strip()
+    value = raw.replace(" ", "").replace(",", ".").strip().upper()
+    value = value.replace("\u041a", "K").replace("\u041c", "M").replace("\u0412", "B")
+    return value
 
 
 def find_views(text: str) -> str:
@@ -62,6 +64,23 @@ def telegram_public_url(url: str) -> str | None:
     return urlunparse((parsed.scheme or "https", parsed.netloc, f"/s/{channel}/{post_id}", "", "", ""))
 
 
+def telegram_post_ref(url: str) -> str | None:
+    parsed = urlparse(url)
+    if "t.me" not in parsed.netloc.lower():
+        return None
+
+    parts = [part for part in parsed.path.split("/") if part]
+    if parts and parts[0] == "s":
+        parts = parts[1:]
+    if len(parts) < 2:
+        return None
+
+    channel, post_id = parts[0], parts[1]
+    if channel == "c" or not post_id.isdigit():
+        return None
+    return f"{channel}/{post_id}"
+
+
 def candidate_urls(url: str, source_type: str) -> list[str]:
     candidates = [url]
     if source_type == "telegram":
@@ -79,6 +98,46 @@ def looks_like_telegram_stub(text: str) -> bool:
     }
 
 
+async def extract_telegram_post(page, url: str, screenshot_path: Path) -> dict | None:
+    post_ref = telegram_post_ref(url)
+    if not post_ref:
+        return None
+
+    selector = f".tgme_widget_message[data-post='{post_ref}']"
+    message = page.locator(selector).first
+    if await message.count() == 0:
+        return None
+
+    await message.scroll_into_view_if_needed()
+    await message.screenshot(path=str(screenshot_path))
+
+    text_locator = message.locator(".tgme_widget_message_text").first
+    views_locator = message.locator(".tgme_widget_message_views").first
+    author_locator = message.locator(".tgme_widget_message_author_name").first
+    time_locator = message.locator("time").first
+
+    post_text = ""
+    views = ""
+    source_name = ""
+    post_datetime = ""
+
+    if await text_locator.count():
+        post_text = await text_locator.inner_text(timeout=5000)
+    if await views_locator.count():
+        views = normalize_views(await views_locator.inner_text(timeout=5000))
+    if await author_locator.count():
+        source_name = await author_locator.inner_text(timeout=5000)
+    if await time_locator.count():
+        post_datetime = await time_locator.get_attribute("datetime") or ""
+
+    return {
+        "source_name": source_name,
+        "post_datetime": post_datetime,
+        "post_text": post_text,
+        "views": views,
+    }
+
+
 async def capture(url: str) -> dict:
     settings = get_settings()
     source_type = detect_source_type(url)
@@ -90,6 +149,7 @@ async def capture(url: str) -> dict:
     title = ""
     body_text = ""
     final_url = url
+    extracted: dict | None = None
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=settings.capture_headless)
@@ -101,31 +161,49 @@ async def capture(url: str) -> dict:
                 await page.wait_for_timeout(3000)
                 title = await page.title()
                 body_text = await page.locator("body").inner_text(timeout=10000)
+                if source_type == "telegram":
+                    extracted = await extract_telegram_post(page, url, screenshot_path)
             except Exception as exc:
                 warnings.append(f"navigation_warning: {candidate}: {exc}")
                 continue
+
+            if extracted:
+                break
 
             if source_type == "telegram" and looks_like_telegram_stub(body_text):
                 warnings.append(f"telegram_stub_page: {candidate}")
                 continue
             break
 
-        await page.screenshot(path=str(screenshot_path), full_page=True)
+        if not extracted:
+            await page.screenshot(path=str(screenshot_path), full_page=True)
         await browser.close()
 
     body_text = re.sub(r"\n{3,}", "\n\n", body_text).strip()
+    post_text = body_text
     views = find_views(body_text)
+    post_datetime = ""
+    source_name = title
+
+    if extracted:
+        post_text = re.sub(r"\n{3,}", "\n\n", extracted.get("post_text", "")).strip()
+        views = extracted.get("views") or views
+        post_datetime = extracted.get("post_datetime", "")
+        source_name = extracted.get("source_name") or title
+
     if not views:
         warnings.append("views_not_found")
+    if source_type == "telegram" and not extracted:
+        warnings.append("telegram_post_selector_not_found")
 
     return {
         "captured_at": captured_at,
         "source_type": source_type,
-        "source_name": title,
+        "source_name": source_name,
         "post_url": url,
         "capture_url": final_url,
-        "post_datetime": "",
-        "post_text": body_text[:12000],
+        "post_datetime": post_datetime,
+        "post_text": post_text[:12000],
         "views": views,
         "screenshot_path": str(Path(screenshot_path).resolve()),
         "warnings": warnings,
