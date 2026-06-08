@@ -47,6 +47,36 @@ def find_views(text: str) -> str:
     return ""
 
 
+async def wait_for_visuals(locator, timeout_ms: int = 10000) -> None:
+    try:
+        await locator.evaluate(
+            """
+            async (element, timeoutMs) => {
+              const deadline = Date.now() + timeoutMs;
+              const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+              while (Date.now() < deadline) {
+                const images = Array.from(element.querySelectorAll("img"));
+                const unloadedImages = images.filter((img) => !img.complete || img.naturalWidth === 0);
+                const bgNodes = Array.from(element.querySelectorAll("*")).filter((node) => {
+                  const bg = getComputedStyle(node).backgroundImage;
+                  return bg && bg !== "none" && bg.includes("url(");
+                });
+
+                if (unloadedImages.length === 0 || bgNodes.length > 0) {
+                  await sleep(800);
+                  return;
+                }
+                await sleep(300);
+              }
+            }
+            """,
+            timeout_ms,
+        )
+    except Exception:
+        return
+
+
 def telegram_public_url(url: str) -> str | None:
     parsed = urlparse(url)
     host = parsed.netloc.lower()
@@ -109,6 +139,8 @@ async def extract_telegram_post(page, url: str, screenshot_path: Path) -> dict |
         return None
 
     await message.scroll_into_view_if_needed()
+    await wait_for_visuals(message)
+    await page.wait_for_timeout(1500)
     await message.screenshot(path=str(screenshot_path))
 
     text_locator = message.locator(".tgme_widget_message_text").first
@@ -133,6 +165,70 @@ async def extract_telegram_post(page, url: str, screenshot_path: Path) -> dict |
     return {
         "source_name": source_name,
         "post_datetime": post_datetime,
+        "post_text": post_text,
+        "views": views,
+    }
+
+
+async def first_existing_locator(page, selectors: list[str]):
+    for selector in selectors:
+        locator = page.locator(selector).first
+        try:
+            if await locator.count():
+                return locator
+        except Exception:
+            continue
+    return None
+
+
+async def extract_vk_views_from_hover(page, post) -> str:
+    hover_selectors = [
+        "a.PostHeaderSubtitle__link",
+        "a.PostHeaderSubtitle__item",
+        "a[href*='wall']",
+        "time",
+    ]
+
+    for selector in hover_selectors:
+        locator = post.locator(selector).last
+        try:
+            if not await locator.count():
+                continue
+            await locator.hover(timeout=5000)
+            await page.wait_for_timeout(1200)
+            body_text = await page.locator("body").inner_text(timeout=5000)
+            views = find_views(body_text)
+            if views:
+                return views
+        except Exception:
+            continue
+    return ""
+
+
+async def extract_vk_post(page, screenshot_path: Path) -> dict | None:
+    post = await first_existing_locator(
+        page,
+        [
+            "[id^='post-']",
+            ".wall_post",
+            ".post",
+            ".Post",
+        ],
+    )
+    if not post:
+        return None
+
+    await post.scroll_into_view_if_needed()
+    await wait_for_visuals(post)
+    await page.wait_for_timeout(1500)
+
+    views = await extract_vk_views_from_hover(page, post)
+    post_text = await post.inner_text(timeout=10000)
+    await post.screenshot(path=str(screenshot_path))
+
+    return {
+        "source_name": await page.title(),
+        "post_datetime": "",
         "post_text": post_text,
         "views": views,
     }
@@ -163,6 +259,8 @@ async def capture(url: str) -> dict:
                 body_text = await page.locator("body").inner_text(timeout=10000)
                 if source_type == "telegram":
                     extracted = await extract_telegram_post(page, url, screenshot_path)
+                if source_type == "vk":
+                    extracted = await extract_vk_post(page, screenshot_path)
             except Exception as exc:
                 warnings.append(f"navigation_warning: {candidate}: {exc}")
                 continue
