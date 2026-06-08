@@ -1,0 +1,37 @@
+# Google Sheets Schema
+
+Create two sheets: `Queue` and `Results`.
+
+## Queue
+
+| column | purpose |
+| --- | --- |
+| id | Unique job ID. Can be empty before ingestion. |
+| status | `new`, `processing`, `done`, `manual_review`, `error`. |
+| post_url | VK or Telegram post URL. |
+| created_at | When the row was created. |
+| locked_at | When the worker started processing it. |
+| result_row | Result row number or link. |
+| error | Last error, if any. |
+
+## Results
+
+| column | purpose |
+| --- | --- |
+| job_id | Queue job ID or generated ID. |
+| captured_at | Capture timestamp. |
+| source_type | `vk`, `telegram`, `unknown`. |
+| source_name | Channel/group/user name if available. |
+| post_url | Original post URL. |
+| post_datetime | Post datetime if available. |
+| post_text | Extracted text. |
+| views | Visible view count if available. |
+| screenshot_path | Local path or uploaded Drive URL. |
+| risk_level | Risk triage level. |
+| matched_criteria | Comma-separated criteria IDs. |
+| confidence | Risk confidence. |
+| recommended_action | Suggested next operator action. |
+| risk_reason | Short explanation. |
+| status | `done`, `manual_review`, or `error`. |
+| warnings | Extraction or review warnings. |
+

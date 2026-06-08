@@ -1,0 +1,24 @@
+# Merge these ideas into ~/.hermes/config.yaml after Hermes setup.
+
+terminal:
+  backend: docker
+  cwd: "/home/hermes/hermes-automation"
+  timeout: 180
+  docker_image: "nikolaik/python-nodejs:python3.11-nodejs20"
+  docker_mount_cwd_to_workspace: true
+
+approvals:
+  mode: manual
+  timeout: 60
+  cron_mode: deny
+
+cron:
+  script_timeout_seconds: 300
+
+display:
+  background_process_notifications: result
+  platforms:
+    telegram:
+      cleanup_progress: true
+      long_running_notifications: true
+
