@@ -181,33 +181,59 @@ async def first_existing_locator(page, selectors: list[str]):
     return None
 
 
-async def extract_vk_views_from_hover(page, post) -> str:
-    hover_selectors = [
-        "a:has-text('\u043d\u0430\u0437\u0430\u0434')",
-        "span:has-text('\u043d\u0430\u0437\u0430\u0434')",
-        "a:has-text('\u0447')",
-        "span:has-text('\u0447')",
-        "a.PostHeaderSubtitle__link",
-        "a.PostHeaderSubtitle__item",
-        ".rel_date",
-        ".post_date a",
-        "a[href*='wall']",
-        "time",
-    ]
+async def hover_vk_bottom_date(page, post) -> bool:
+    try:
+        point = await post.evaluate(
+            """
+            (element) => {
+              const datePattern = /(\d+\s*(мин|ч|д|дн)|сегодня|вчера|назад)/i;
+              const nodes = Array.from(element.querySelectorAll("a, span, time, div"));
+              const candidates = nodes
+                .filter((node) => datePattern.test((node.innerText || node.textContent || "").trim()))
+                .map((node) => {
+                  const rect = node.getBoundingClientRect();
+                  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, bottom: rect.bottom, right: rect.right };
+                })
+                .filter((rect) => rect.x > 0 && rect.y > 0 && rect.bottom > 0 && rect.right > 0)
+                .sort((a, b) => (b.bottom - a.bottom) || (b.right - a.right));
+              return candidates[0] || null;
+            }
+            """
+        )
+        if not point:
+            return False
+        await page.mouse.move(point["x"], point["y"])
+        await page.wait_for_timeout(1800)
+        return True
+    except Exception:
+        return False
 
-    for selector in hover_selectors:
-        locator = post.locator(selector).last
+
+async def extract_vk_views_from_hover(page) -> str:
+    tooltip_selectors = [
+        ".vkuiTooltip",
+        ".Tooltip",
+        ".tt_w",
+        "[role='tooltip']",
+    ]
+    for selector in tooltip_selectors:
         try:
-            if not await locator.count():
-                continue
-            await locator.hover(timeout=5000)
-            await page.wait_for_timeout(1200)
-            body_text = await page.locator("body").inner_text(timeout=5000)
-            views = find_views(body_text)
-            if views:
-                return views
+            locator = page.locator(selector).last
+            if await locator.count():
+                text = await locator.inner_text(timeout=3000)
+                views = find_views(text)
+                if views:
+                    return views
         except Exception:
             continue
+
+    try:
+        body_text = await page.locator("body").inner_text(timeout=5000)
+        view_matches = list(re.finditer(r"([\d\s.,]+[KMBKM\u041a\u041c\u0412]?)\s*(?:views|\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u043e\u0432)", body_text, re.I))
+        if view_matches:
+            return normalize_views(view_matches[-1].group(1))
+    except Exception:
+        pass
     return ""
 
 
@@ -285,9 +311,12 @@ async def extract_vk_post(page, screenshot_path: Path) -> dict | None:
     await wait_for_visuals(post)
     await page.wait_for_timeout(1500)
 
-    views = await extract_vk_views_from_hover(page, post)
+    hover_ok = await hover_vk_bottom_date(page, post)
+    views = await extract_vk_views_from_hover(page) if hover_ok else ""
     post_text = await post.inner_text(timeout=10000)
-    await screenshot_vk_post_card(page, post, screenshot_path, include_hover_popover=bool(views))
+    if hover_ok:
+        await hover_vk_bottom_date(page, post)
+    await screenshot_vk_post_card(page, post, screenshot_path, include_hover_popover=hover_ok)
 
     return {
         "source_name": await page.title(),
