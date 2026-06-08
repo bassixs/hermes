@@ -183,15 +183,45 @@ async def first_existing_locator(page, selectors: list[str]):
 
 async def hover_vk_bottom_date(page, post) -> bool:
     try:
-        bbox = await post.bounding_box()
-        if not bbox:
+        await page.mouse.move(10, 10)
+        await page.wait_for_timeout(300)
+        point = await post.evaluate(
+            """
+            (element) => {
+              const datePattern = /^(\\d+\\s*(мин|ч|д|дн)\\s*назад|сегодня|вчера)$/i;
+              const nodes = Array.from(element.querySelectorAll("a, span, time, div"));
+              const candidates = nodes
+                .map((node) => {
+                  const text = (node.innerText || node.textContent || "").replace(/\\s+/g, " ").trim();
+                  const rect = node.getBoundingClientRect();
+                  const style = getComputedStyle(node);
+                  return {
+                    text,
+                    x: rect.left + Math.max(rect.width - 4, 0),
+                    y: rect.top + rect.height / 2,
+                    bottom: rect.bottom,
+                    right: rect.right,
+                    width: rect.width,
+                    height: rect.height,
+                    visible: style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0
+                  };
+                })
+                .filter((item) =>
+                  item.visible &&
+                  item.text.length <= 32 &&
+                  datePattern.test(item.text) &&
+                  item.x > 0 &&
+                  item.y > 0
+                )
+                .sort((a, b) => (b.bottom - a.bottom) || (b.right - a.right));
+              return candidates[0] || null;
+            }
+            """
+        )
+        if not point:
             return False
-        point = {
-            "x": bbox["x"] + bbox["width"] - 70,
-            "y": bbox["y"] + bbox["height"] - 48,
-        }
         await page.mouse.move(point["x"], point["y"])
-        await page.wait_for_timeout(1800)
+        await page.wait_for_timeout(2200)
         return True
     except Exception:
         return False
@@ -209,6 +239,8 @@ async def extract_vk_views_from_hover(page) -> str:
             locator = page.locator(selector).last
             if await locator.count():
                 text = await locator.inner_text(timeout=3000)
+                if "\u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440" not in text.lower() and "view" not in text.lower():
+                    continue
                 views = find_views(text)
                 if views:
                     return views
