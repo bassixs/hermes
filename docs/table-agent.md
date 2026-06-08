@@ -38,7 +38,7 @@ the uploaded Google Drive image.
 ```env
 TELEGRAM_TABLE_BOT_TOKEN=123456:...
 TELEGRAM_TABLE_ALLOWED_CHAT_IDS=-1001234567890
-GOOGLE_DRIVE_SCREENSHOT_FOLDER_ID=...
+SCREENSHOT_PUBLIC_BASE_URL=http://SERVER_IP/screenshots
 GOOGLE_SIMPLE_RESULTS_SHEET=Results
 ```
 
@@ -54,11 +54,19 @@ Manual test without Telegram:
 python scripts/process_table_chat_link.py "https://t.me/readovkanews/108685"
 ```
 
-## Google Drive
+## Screenshot Hosting
 
-Create a Drive folder for screenshots. Share that folder with the service
-account email as `Editor`. The bot uploads screenshots there and makes each
-uploaded image readable by link.
+Preferred MVP option: serve screenshots from the VPS with `nginx`.
+
+Set:
+
+```env
+SCREENSHOT_PUBLIC_BASE_URL=http://SERVER_IP/screenshots
+```
+
+Google Drive upload is still supported, but a personal Google Drive cannot be
+used by a service account for file uploads. Google Drive upload works only with
+Shared Drives or user OAuth.
 
 ## Guardrails
 
@@ -66,4 +74,3 @@ uploaded image readable by link.
 - Do not send briefs to observers.
 - Do not make operational decisions.
 - Only capture, normalize, write, and report errors.
-

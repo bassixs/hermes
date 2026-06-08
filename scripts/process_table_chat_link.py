@@ -3,10 +3,19 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
+from pathlib import Path
 
 from capture_post import capture
 from drive_client import upload_public_image
 from sheets_client import append_simple_result
+
+
+def public_screenshot_url(path: str) -> str:
+    base_url = os.getenv("SCREENSHOT_PUBLIC_BASE_URL", "").strip().rstrip("/")
+    if not base_url:
+        return ""
+    return f"{base_url}/{Path(path).name}"
 
 
 async def process(url: str, write_sheet: bool = True) -> dict:
@@ -14,10 +23,12 @@ async def process(url: str, write_sheet: bool = True) -> dict:
     warnings = list(capture_result.get("warnings", []))
     screenshot_url = ""
     if capture_result.get("screenshot_path"):
-        try:
-            screenshot_url = upload_public_image(capture_result["screenshot_path"])
-        except Exception as exc:
-            warnings.append(f"drive_upload_failed: {exc}")
+        screenshot_url = public_screenshot_url(capture_result["screenshot_path"])
+        if not screenshot_url:
+            try:
+                screenshot_url = upload_public_image(capture_result["screenshot_path"])
+            except Exception as exc:
+                warnings.append(f"drive_upload_failed: {exc}")
 
     row_number = ""
     if write_sheet:

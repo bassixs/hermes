@@ -78,6 +78,20 @@ python scripts/table_queue_worker.py --once
 The table chat command requires Google credentials, Drive folder ID, and
 spreadsheet settings before it can run successfully.
 
+For a personal Google account, prefer public screenshot hosting from the VPS
+instead of Google Drive:
+
+```bash
+sudo apt install -y nginx
+sudo ln -s /home/hermes/hermes-automation/screenshots /var/www/html/screenshots
+```
+
+Then set:
+
+```env
+SCREENSHOT_PUBLIC_BASE_URL=http://SERVER_IP/screenshots
+```
+
 ## Table Agent Telegram Bot
 
 After `.env` is filled, run a foreground test:
